@@ -29,7 +29,13 @@ export default class ExpressServer {
     const welcome = p => () => l.info(`up and running in ${process.env.NODE_ENV || 'development'} @: ${os.hostname()} on port: ${p}}`);
     const server = http.createServer(app);
     const io = socketIo(server);
-    io.on('connection', () => {});
+    io.on('connection', socket => {
+      console.log('a user connected');
+      socket.on('new idea', idea => {
+        console.log('new idea: ', idea);
+        io.emit('new idea', idea);
+      });
+    });
     server.listen(port, welcome(port));
     return server;
   }
