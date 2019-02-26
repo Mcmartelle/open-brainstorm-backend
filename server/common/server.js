@@ -33,7 +33,7 @@ export default class ExpressServer {
       console.log('a user connected');
       socket.on('new idea', idea => {
         console.log('new idea: ', idea);
-        io.emit('new idea', idea);
+        socket.broadcast.emit('new idea', idea);
       });
     });
     server.listen(port, welcome(port));
