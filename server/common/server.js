@@ -5,6 +5,7 @@ import * as http from 'http';
 import * as os from 'os';
 import cookieParser from 'cookie-parser';
 import socketIo from 'socket.io';
+import sockets from './sockets';
 import swaggerify from './swagger';
 import l from './logger';
 
@@ -28,14 +29,7 @@ export default class ExpressServer {
   listen(port = process.env.PORT) {
     const welcome = p => () => l.info(`up and running in ${process.env.NODE_ENV || 'development'} @: ${os.hostname()} on port: ${p}}`);
     const server = http.createServer(app);
-    const io = socketIo(server);
-    io.on('connection', socket => {
-      console.log('a user connected');
-      socket.on('new idea', idea => {
-        console.log('new idea: ', idea);
-        socket.broadcast.emit('new idea', idea);
-      });
-    });
+    sockets(server);
     server.listen(port, welcome(port));
     return server;
   }

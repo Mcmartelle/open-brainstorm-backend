@@ -19,6 +19,7 @@
     "dotenv": "^6.0.0",
     "express": "^4.16.4",
     "pino": "^5.10.8",
+    "randexp": "^0.5.3",
     "socket.io": "^2.2.0",
     "swagger-express-middleware": "^2.0.1"
   },
