@@ -1,5 +1,18 @@
 import socketio from 'socket.io';
 import RandExp from 'randexp';
+import Redis from 'ioredis';
+
+const redis = new Redis();
+
+redis.set('foo', 'bar', 'EX', 10); // testing redis
+redis.get('foo', function (err, result) {
+  console.log(result);
+});
+setTimeout(() => {
+  redis.get('foo', function (err, result) {
+    console.log(result);
+  });
+}, 12000);
 
 const rooms = {};
 
@@ -21,7 +34,7 @@ const sockets = server => {
       if (rooms[roomName]) {
         socket.join(roomName, () => {
           console.log(socket.id, ' joined room: ', roomName);
-          socket.emit('roomJoined', { roomName, isCreator, creatorId: rooms[roomName].creatorId, socketId: socket.id});
+          socket.emit('roomJoined', { roomName, isCreator, creatorId: rooms[roomName].creatorId, socketId: socket.id });
           socket.on('idea update', (idea, isNewIdea) => {
             console.log('idea: ', idea);
             socket.in(roomName).emit('idea update', idea, isNewIdea);
@@ -29,6 +42,10 @@ const sockets = server => {
           // Getting full state from the brainstorm creator
           if (isCreator) {
             socket.on('brainstorm state send', (requesterId, brainstormState) => {
+              redis.set(roomName, JSON.stringify(brainstormState), 'EX', process.env.REDIS_EXPIRATION_TIME); // testing redis
+              redis.get(roomName, function (err, result) {
+                console.log(JSON.parse(result));
+              });
               io.to(`${requesterId}`).emit('brainstorm state sent', brainstormState);
             });
           } else {

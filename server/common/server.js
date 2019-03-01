@@ -4,7 +4,6 @@ import * as bodyParser from 'body-parser';
 import * as http from 'http';
 import * as os from 'os';
 import cookieParser from 'cookie-parser';
-import socketIo from 'socket.io';
 import sockets from './sockets';
 import swaggerify from './swagger';
 import l from './logger';
