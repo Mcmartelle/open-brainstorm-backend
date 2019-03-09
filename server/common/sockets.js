@@ -4,16 +4,6 @@ import Redis from 'ioredis';
 
 const redis = new Redis();
 
-redis.set('foo', 'bar', 'EX', 10); // testing redis
-redis.get('foo', function (err, result) {
-  console.log(result);
-});
-setTimeout(() => {
-  redis.get('foo', function (err, result) {
-    console.log(result);
-  });
-}, 12000);
-
 const rooms = {};
 
 const generateRoomName = creatorId => {
@@ -28,7 +18,7 @@ const generateRoomName = creatorId => {
 };
 
 const sockets = server => {
-  const io = socketio(server);
+  const io = socketio(server, { path: '/api/socket.io' });
   io.on('connection', socket => {
     function joinRoom(roomName, isCreator = false) {
       if (rooms[roomName]) {
