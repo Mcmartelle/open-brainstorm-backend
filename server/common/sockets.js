@@ -4,56 +4,72 @@ import Redis from 'ioredis';
 
 const redis = new Redis();
 
-const rooms = {};
-
-const generateRoomName = creatorId => {
+async function generateRoomName(creatorId) {
   let roomName = null;
-  const randExp = new RandExp(/^[A-Z]{5}/);
+  const randExp = new RandExp(/^[0-9]{6}/);
+  roomName = randExp.gen();
+  const result = await redis.get(roomName);
+  console.log('result: ', result);
   // avoiding any room names that already exist
-  while (typeof roomName !== 'string' || rooms[roomName]) {
-    roomName = randExp.gen();
+  if (result === null) {
+    console.log(`setting room ${roomName} to redis`);
+    redis.set(roomName, creatorId, 'EX', process.env.REDIS_EXPIRATION_TIME);
+    return roomName;
   }
-  rooms[roomName] = { creatorId };
-  return roomName;
-};
+  console.log('trying again');
+  return generateRoomName(creatorId);
+}
 
 const sockets = server => {
   const io = socketio(server, { path: '/api/socket.io' });
   io.on('connection', socket => {
-    function joinRoom(roomName, isCreator = false) {
-      if (rooms[roomName]) {
+    async function joinRoom(roomName) {
+      const creatorId = await redis.get(roomName);
+      if (typeof creatorId === 'string') {
         socket.join(roomName, () => {
           console.log(socket.id, ' joined room: ', roomName);
-          socket.emit('roomJoined', { roomName, isCreator, creatorId: rooms[roomName].creatorId, socketId: socket.id });
+          socket.emit('roomJoined', { roomName, isCreator: false, creatorId, socketId: socket.id });
           socket.on('idea update', (idea, isNewIdea) => {
             console.log('idea: ', idea);
             socket.in(roomName).emit('idea update', idea, isNewIdea);
           });
           // Getting full state from the brainstorm creator
-          if (isCreator) {
-            socket.on('brainstorm state send', (requesterId, brainstormState) => {
-              redis.set(roomName, JSON.stringify(brainstormState), 'EX', process.env.REDIS_EXPIRATION_TIME); // testing redis
-              redis.get(roomName, function (err, result) {
-                console.log(JSON.parse(result));
-              });
-              io.to(`${requesterId}`).emit('brainstorm state sent', brainstormState);
+          socket.on('brainstorm state request', roomId => {
+            redis.get(roomId).then(roomCreatorId => {
+              io.to(`${roomCreatorId}`).emit('brainstorm state requested', socket.id);
             });
-          } else {
-            socket.on('brainstorm state request', creatorId => {
-              io.to(`${creatorId}`).emit('brainstorm state requested', socket.id);
-            });
-          }
+          });
         });
       } else {
         console.log('Error: The requested brainstorm does not exist');
         socket.emit('room not found', 'The requested brainstorm does not exist');
       }
     }
+
+    function creatorJoinRoom(roomName, creatorId) {
+      socket.join(roomName, () => {
+        console.log(socket.id, ' creator joined room: ', roomName);
+        redis.set(roomName, creatorId);
+        socket.emit('roomJoined', { roomName, isCreator: true, creatorId, socketId: socket.id });
+        socket.on('idea update', (idea, isNewIdea) => {
+          console.log('idea: ', idea);
+          socket.in(roomName).emit('idea update', idea, isNewIdea);
+        });
+        socket.on('brainstorm state send', (requesterId, brainstormState) => {
+          io.to(`${requesterId}`).emit('brainstorm state sent', brainstormState);
+        });
+      });
+    }
+
     socket.emit('connected', socket.id);
     console.log(`New connection from ${socket.handshake.address}, id:${socket.id}`);
     socket.on('createRoom', () => {
-      const roomName = generateRoomName(socket.id);
-      joinRoom(roomName, true);
+      generateRoomName(socket.id).then(roomName => {
+        creatorJoinRoom(roomName, socket.id);
+      });
+    });
+    socket.on('creator rejoin', roomName => {
+      creatorJoinRoom(roomName, socket.id);
     });
     socket.on('join room', joinRoom);
   });
